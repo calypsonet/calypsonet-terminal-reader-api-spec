@@ -810,7 +810,7 @@ are active in parallel; the one placed on the basic channel, if any, is identifi
 | --
 | 3.0
 | All <<type_SmartCard,`SmartCard`>> instances corresponding to successful selection cases, each active on its own
-  logical channel, indexed by the `selectionCaseId` supplied to `prepareSelectionCase`. Possibly empty.
+  logical channel, indexed by the `selectionCaseId` supplied at preparation. Possibly empty.
 |===
 
 [[type_SequentialCardSelectionResult]]
@@ -848,7 +848,7 @@ expose the data collected during their selection (see <<sec_smartcard_lifecycle,
 | --
 | 3.0
 | All <<type_SmartCard,`SmartCard`>> instances corresponding to successful selection cases, indexed by the
-  `selectionCaseId` supplied to `prepareSelectionCase`. Possibly empty.
+  `selectionCaseId` supplied at preparation. Possibly empty.
 
 | `activeSelectionCaseId`
 | `Int?`
@@ -871,7 +871,7 @@ expose the data collected during their selection (see <<sec_smartcard_lifecycle,
 |===
 
 The execution stops at the first successful selection case, so the result exposes at most one smart card,
-identified by the `selectionCaseId` supplied to `prepareSelectionCase`. `selectionCaseId` and `smartCard` are either both
+identified by the `selectionCaseId` supplied at preparation. `selectionCaseId` and `smartCard` are either both
 `null`, when no selection case succeeded, or both non-`null`.
 
 [cols="^.^1,^.^1,^.^1,^.^1,.^5", options="header"]
@@ -1044,7 +1044,11 @@ implementation-agnostic view over the readers currently registered in the enviro
 |===
 
 A *card selection scenario* is composed of one or more *selection cases*, each identified by an application-chosen
-identifier and backed by a <<type_CardSelectionExtension,`CardSelectionExtension`>>. A selection case targets a
+identifier and backed by the selection extension of a card extension. A selection case pairs a card selector with
+the selection extension of the same family: an <<type_IsoCardSelector,`IsoCardSelector`>> with an
+<<type_IsoCardSelectionExtension,`IsoCardSelectionExtension`>>, a <<type_BasicCardSelector,`BasicCardSelector`>>
+with a <<type_BasicCardSelectionExtension,`BasicCardSelectionExtension`>>. Each preparation operation accepts one
+pair only, so a selector and an extension that do not belong to the same family cannot be combined. A selection case targets a
 specific card and MAY define additional commands to be executed after the successful selection. Selection cases are
 executed in the order in which they were prepared, regardless of their identifiers. When a selection case fails, the
 manager tries the next selection case defined in the scenario, until no further selection case is available.
@@ -1084,8 +1088,8 @@ execution, scheduling, parsing of a scheduled response and import of a processed
 specialised manager. See <<sec_card_selection_modes,Card selection modes>> for an end-to-end view of the synchronous
 and asynchronous flows.
 
-A scenario is considered *prepared* once at least one selection case has been appended via `prepareSelectionCase` or
-imported via `importCardSelectionScenario`. A prepared scenario MAY be executed multiple times; each execution
+A scenario is considered *prepared* once at least one selection case has been appended via
+`prepareIsoSelectionCase` or `prepareBasicSelectionCase`, or imported via `importCardSelectionScenario`. A prepared scenario MAY be executed multiple times; each execution
 operates on the scenario as it stood at the time of the call.
 
 [[op_CardSelectionManager_exportCardSelectionScenario]]
@@ -1143,30 +1147,33 @@ operates on the scenario as it stood at the time of the call.
 | See also       | <<op_CardSelectionManager_exportCardSelectionScenario,`exportCardSelectionScenario`>>
 |===
 
-[[op_CardSelectionManager_prepareSelectionCase]]
-===== Prepare Selection Case
+[[op_CardSelectionManager_prepareIsoSelectionCase]]
+===== Prepare ISO Selection Case
 
 [cols="^.^1h,.^5", grid=rows, frame=all]
 |===
 | Signature
-| `prepareSelectionCase(` +
+| `prepareIsoSelectionCase(` +
 `{nbsp}{nbsp}{nbsp}{nbsp}selectionCaseId: Int,` +
-`{nbsp}{nbsp}{nbsp}{nbsp}cardSelector: CardSelector,` +
-`{nbsp}{nbsp}{nbsp}{nbsp}cardSelectionExtension: CardSelectionExtension` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelector: IsoCardSelector,` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelectionExtension: IsoCardSelectionExtension` +
 `) -> Self`
-| Since          | 2.0
+| Since          | 3.0
 | Description
-| Appends a selection case, identified by `selectionCaseId`, to the scenario. Selection cases are executed in the order
-  in which they were prepared, regardless of their identifiers. The identifier is the key under which the
-  corresponding <<type_SmartCard,`SmartCard`>> is exposed in the selection result.
+| Appends a selection case targeting an ISO/IEC 7816-4 card, identified by `selectionCaseId`, to the scenario.
+  This operation is carried by every selection manager. Selection cases are executed in the order in which they
+  were prepared, regardless of their identifiers, and `selectionCaseId` designates the corresponding
+  <<type_SmartCard,`SmartCard`>> in the selection result.
 | Parameters
 | `selectionCaseId` -- the identifier of the selection case, chosen by the application. +
-  `cardSelector` (<<type_CardSelector,`CardSelector`>>) -- the card selector containing the filters to be used to select the card. +
-  `cardSelectionExtension` (<<type_CardSelectionExtension,`CardSelectionExtension`>>) -- the card selection extension to be used to parse the card selection response.
+  `cardSelector` (<<type_IsoCardSelector,`IsoCardSelector`>>) -- the card selector containing the filters to be used to select the card. +
+  `cardSelectionExtension` (<<type_IsoCardSelectionExtension,`IsoCardSelectionExtension`>>) -- the card selection extension to be used to parse the card selection response.
 | Returns        | The current instance (`Self`).
 | Pre-conditions | *Argument* -- every parameter is non-`null`. +
   *Argument* -- `selectionCaseId` is not already used by a selection case of the scenario.
 | Errors         | None.
+| See also       | <<op_SingleCardSelectionManager_prepareBasicSelectionCase,`SingleCardSelectionManager.prepareBasicSelectionCase`>> +
+  <<op_SequentialCardSelectionManager_prepareBasicSelectionCase,`SequentialCardSelectionManager.prepareBasicSelectionCase`>>
 |===
 
 [[type_CardSelector]]
@@ -1196,6 +1203,11 @@ Its permitted implementations are <<type_BasicCardSelector,`BasicCardSelector`>>
 | Since      | 3.0
 | Purpose    | Card selection manager executing every selection case of the scenario, keeping each matching application of an ISO/IEC 7816-4 multi-channel card active simultaneously, each on its own logical channel. Out of scope for storage cards. An instance is obtained via <<op_ReaderApiFactory_createMultichannelCardSelectionManager,`ReaderApiFactory.createMultichannelCardSelectionManager`>>.
 |===
+
+Being restricted to ISO/IEC 7816-4 cards, this manager exposes only
+<<op_CardSelectionManager_prepareIsoSelectionCase,`prepareIsoSelectionCase`>>: a selection case prepared without
+ISO/IEC 7816-4 filters has no meaning here, and the preparation operation that would accept one is not part of its
+contract.
 
 Each successful selection case is placed on its own logical channel of the ISO/IEC 7816-4 card, the use of the
 basic channel being governed by the <<type_ChannelSelectionPolicy,`ChannelSelectionPolicy`>> passed at execution
@@ -1505,6 +1517,36 @@ MUST be used instead. The scenario can be executed explicitly, on a card already
 | Errors         | <<type_InvalidCardResponse,`InvalidCardResponse`>> -- if the data returned by the card could not be interpreted.
 |===
 
+[[op_SequentialCardSelectionManager_prepareBasicSelectionCase]]
+===== Prepare Basic Selection Case
+
+[cols="^.^1h,.^5", grid=rows, frame=all]
+|===
+| Signature
+| `prepareBasicSelectionCase(` +
+`{nbsp}{nbsp}{nbsp}{nbsp}selectionCaseId: Int,` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelector: BasicCardSelector,` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelectionExtension: BasicCardSelectionExtension` +
+`) -> Self`
+| Since          | 3.0
+| Description
+| Appends a selection case targeting a card selected without ISO/IEC 7816-4 filters, identified by
+  `selectionCaseId`, to the scenario. This operation is carried by the single-channel managers only, a card
+  selected without ISO/IEC 7816-4 filters having no logical channel to be placed on. Selection cases are executed
+  in the order in which they were prepared, regardless of their identifiers, and `selectionCaseId` designates the
+  corresponding <<type_SmartCard,`SmartCard`>> in the selection result.
+| Parameters
+| `selectionCaseId` -- the identifier of the selection case, chosen by the application. +
+  `cardSelector` (<<type_BasicCardSelector,`BasicCardSelector`>>) -- the card selector containing the filters to be used to select the card. +
+  `cardSelectionExtension` (<<type_BasicCardSelectionExtension,`BasicCardSelectionExtension`>>) -- the card selection extension to be used to parse the card selection response.
+| Returns        | The current instance (`Self`).
+| Pre-conditions | *Argument* -- every parameter is non-`null`. +
+  *Argument* -- `selectionCaseId` is not already used by a selection case of the scenario.
+| Errors         | None.
+| See also       | <<op_CardSelectionManager_prepareIsoSelectionCase,`CardSelectionManager.prepareIsoSelectionCase`>> +
+  <<op_SingleCardSelectionManager_prepareBasicSelectionCase,`SingleCardSelectionManager.prepareBasicSelectionCase`>>
+|===
+
 [[op_SequentialCardSelectionManager_processCardSelectionScenario]]
 ===== Process Card Selection Scenario
 
@@ -1610,6 +1652,36 @@ most one smart card. The scenario can be executed explicitly, on a card already 
 | Errors         | <<type_InvalidCardResponse,`InvalidCardResponse`>> -- if the data returned by the card could not be interpreted.
 |===
 
+[[op_SingleCardSelectionManager_prepareBasicSelectionCase]]
+===== Prepare Basic Selection Case
+
+[cols="^.^1h,.^5", grid=rows, frame=all]
+|===
+| Signature
+| `prepareBasicSelectionCase(` +
+`{nbsp}{nbsp}{nbsp}{nbsp}selectionCaseId: Int,` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelector: BasicCardSelector,` +
+`{nbsp}{nbsp}{nbsp}{nbsp}cardSelectionExtension: BasicCardSelectionExtension` +
+`) -> Self`
+| Since          | 3.0
+| Description
+| Appends a selection case targeting a card selected without ISO/IEC 7816-4 filters, identified by
+  `selectionCaseId`, to the scenario. This operation is carried by the single-channel managers only, a card
+  selected without ISO/IEC 7816-4 filters having no logical channel to be placed on. Selection cases are executed
+  in the order in which they were prepared, regardless of their identifiers, and `selectionCaseId` designates the
+  corresponding <<type_SmartCard,`SmartCard`>> in the selection result.
+| Parameters
+| `selectionCaseId` -- the identifier of the selection case, chosen by the application. +
+  `cardSelector` (<<type_BasicCardSelector,`BasicCardSelector`>>) -- the card selector containing the filters to be used to select the card. +
+  `cardSelectionExtension` (<<type_BasicCardSelectionExtension,`BasicCardSelectionExtension`>>) -- the card selection extension to be used to parse the card selection response.
+| Returns        | The current instance (`Self`).
+| Pre-conditions | *Argument* -- every parameter is non-`null`. +
+  *Argument* -- `selectionCaseId` is not already used by a selection case of the scenario.
+| Errors         | None.
+| See also       | <<op_CardSelectionManager_prepareIsoSelectionCase,`CardSelectionManager.prepareIsoSelectionCase`>> +
+  <<op_SequentialCardSelectionManager_prepareBasicSelectionCase,`SequentialCardSelectionManager.prepareBasicSelectionCase`>>
+|===
+
 [[op_SingleCardSelectionManager_processCardSelectionScenario]]
 ===== Process Card Selection Scenario
 
@@ -1658,6 +1730,21 @@ most one smart card. The scenario can be executed explicitly, on a card already 
 |===
 
 === SPI Interfaces
+
+[[type_BasicCardSelectionExtension]]
+==== Basic Card Selection Extension
+
+[cols="^.^1h,.^5", grid=rows, frame=all]
+|===
+| Name       | `BasicCardSelectionExtension`
+| Kind       | Marker interface (SPI)
+| Namespace  | `reader.selection.spi`
+| Since      | 3.0
+| Purpose    | Selection extension provided by a card extension whose products are selected without ISO/IEC 7816-4 filters, such as storage cards or security modules selected on their power-on data. It declares no operation at the API level; the contract between the selection manager and the extension is defined by the card extension specification consuming this SPI.
+|===
+
+It is paired with a <<type_BasicCardSelector,`BasicCardSelector`>> by the `prepareBasicSelectionCase` operation of
+the single-channel selection managers.
 
 [[type_CardReaderEventHandler]]
 ==== Card Reader Event Handler
@@ -1713,21 +1800,6 @@ This SPI unifies the reception of nominal events (`onReaderEvent`) and of fatal 
 | Errors         | None. Any error raised by the handler is routed to `onReaderError`.
 |===
 
-[[type_CardSelectionExtension]]
-==== Card Selection Extension
-
-[cols="^.^1h,.^5", grid=rows, frame=all]
-|===
-| Name       | `CardSelectionExtension`
-| Kind       | Marker interface (SPI)
-| Namespace  | `reader.selection.spi`
-| Since      | 2.0
-| Purpose    | Provided by card extensions to enrich a selection case with additional commands and to interpret the response in order to build the corresponding <<type_SmartCard,`SmartCard`>>.
-|===
-
-This interface declares no operation at the API level; the contract between the selection manager and the
-extension is defined by the card extension specification consuming this SPI.
-
 [[type_CardTransactionManager]]
 ==== Card Transaction Manager
 
@@ -1765,6 +1837,22 @@ minimise network exchanges, which is especially valuable in distributed architec
   <<type_CardCommunication,`CardCommunication`>> -- if a communication error with the card occurs. +
   <<type_InvalidCardResponse,`InvalidCardResponse`>> -- if a command returns an unexpected status, or if the manager was obtained through `asMultichannelCardTransactionManager` and the card does not support multi-channel.
 |===
+
+[[type_IsoCardSelectionExtension]]
+==== ISO Card Selection Extension
+
+[cols="^.^1h,.^5", grid=rows, frame=all]
+|===
+| Name       | `IsoCardSelectionExtension`
+| Kind       | Marker interface (SPI)
+| Namespace  | `reader.selection.spi`
+| Since      | 3.0
+| Purpose    | Selection extension provided by a card extension whose products are selected through ISO/IEC 7816-4 filters, typically by the name of a dedicated file. It declares no operation at the API level; the contract between the selection manager and the extension is defined by the card extension specification consuming this SPI.
+|===
+
+It is paired with an <<type_IsoCardSelector,`IsoCardSelector`>> by the
+<<op_CardSelectionManager_prepareIsoSelectionCase,`prepareIsoSelectionCase`>> operation, which every selection
+manager exposes.
 
 [[type_IsoCardTransactionManager]]
 ==== ISO Card Transaction Manager

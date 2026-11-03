@@ -141,7 +141,7 @@ package "spi" as readerSpi {
 package "selection" as selectionApi {
     ' Selection
     interface CardSelectionManager {
-        +<color:blue>prepareSelectionCase(selectionCaseId: Int, cardSelector: CardSelector, cardSelectionExtension: CardSelectionExtension) → Self
+        +<color:blue>prepareIsoSelectionCase(selectionCaseId: Int, cardSelector: IsoCardSelector, cardSelectionExtension: IsoCardSelectionExtension) → Self
 
         +exportCardSelectionScenario() → String
         +<color:blue>importCardSelectionScenario(cardSelectionScenario: String) → Self
@@ -149,6 +149,8 @@ package "selection" as selectionApi {
         +exportProcessedCardSelectionScenario() → String
     }
     interface "<color:blue>SingleCardSelectionManager" as SingleCardSelectionManager <<blue>> extends CardSelectionManager {
+        +<color:blue>prepareBasicSelectionCase(selectionCaseId: Int, cardSelector: BasicCardSelector, cardSelectionExtension: BasicCardSelectionExtension) → Self
+
         +<color:blue>processCardSelectionScenario(reader: CardReader) → SingleCardSelectionResult
         {method} <size:10><color:#7F8C8D>    ⚠ errors: ReaderCommunication, CardCommunication, InvalidCardResponse</color></size>
 
@@ -160,6 +162,8 @@ package "selection" as selectionApi {
         {method} <size:10><color:#7F8C8D>    ⚠ errors: InvalidCardResponse</color></size>
     }
     interface "<color:blue>SequentialCardSelectionManager" as SequentialCardSelectionManager <<blue>> extends CardSelectionManager {
+        +<color:blue>prepareBasicSelectionCase(selectionCaseId: Int, cardSelector: BasicCardSelector, cardSelectionExtension: BasicCardSelectionExtension) → Self
+
         +<color:blue>processCardSelectionScenario(reader: CardReader) → SequentialCardSelectionResult
         {method} <size:10><color:#7F8C8D>    ⚠ errors: ReaderCommunication, CardCommunication, InvalidCardResponse</color></size>
 
@@ -213,7 +217,9 @@ package "selection" as selectionApi {
 
     ' Card Extension SPI
     package "spi" as selectionSpi {
-        interface "CardSelectionExtension" as CardSelectionExtension <<red>> {
+        interface "<color:blue>BasicCardSelectionExtension" as BasicCardSelectionExtension <<red>> <<blue>> {
+        }
+        interface "<color:blue>IsoCardSelectionExtension" as IsoCardSelectionExtension <<red>> <<blue>> {
         }
         interface "SmartCard" as SmartCard <<red>> {
             +getPowerOnData() → String?
@@ -277,7 +283,7 @@ ObservableCardReader ..> CardReaderEventHandler #C_USE : use >
 CardDetectionSettings ..> DetectionMode #C_USE : use >
 
 CardReaderEvent ..> CardReaderEventType #C_USE : use >
-CardReaderEvent ...> ScheduledCardSelectionsResponse #C_USE : use >
+CardReaderEvent ....> ScheduledCardSelectionsResponse #C_USE : use >
 
 CardReaderEventHandler ..> CardReaderEvent #C_USE : use >
 
@@ -292,8 +298,12 @@ MultichannelCardSelectionResult ..> SmartCard #C_USE : use >
 IsoCardSelector ..> FileOccurrence #C_USE : use >
 IsoCardSelector ..> FileControlInformation #C_USE : use >
 
-CardSelectionManager .up...> CardSelector #C_USE : use >
-CardSelectionManager ..> CardSelectionExtension #C_USE : use >
+CardSelectionManager .up...> IsoCardSelector #C_USE : use >
+CardSelectionManager ..> IsoCardSelectionExtension #C_USE : use >
+SingleCardSelectionManager .up....> BasicCardSelector #C_USE : use >
+SingleCardSelectionManager ..> BasicCardSelectionExtension #C_USE : use >
+SequentialCardSelectionManager .up....> BasicCardSelector #C_USE : use >
+SequentialCardSelectionManager ..> BasicCardSelectionExtension #C_USE : use >
 
 SingleCardSelectionManager ...> SingleCardSelectionResult #C_LINK : provide >
 SingleCardSelectionManager .up.....> CardReader #C_USE : use >
@@ -315,6 +325,7 @@ IsoCardTransactionManager .right.> MultichannelCardTransactionManager #C_LINK : 
 
 ApiProperties -[hidden]- errors
 ReaderApiFactory -[hidden]right- CardReaderProvider
+BasicCardSelectionExtension -[hidden]- IsoCardSelectionExtension
 
 ' == STYLE ==
 
