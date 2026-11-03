@@ -930,11 +930,12 @@ table.tableblock th p {
 </li>
 <li><a href="#annex_external_requirements">Annex A: Conformance to external requirements</a>
 <ul class="sectlevel2">
-<li><a href="#annex_detection">A.1. Detection</a>
+<li><a href="#annex_applicability_contexts">A.1. Applicability contexts</a></li>
+<li><a href="#annex_detection">A.2. Detection</a>
 <ul class="sectlevel3">
-<li><a href="#annex_removal_notification">A.1.1. Removal notification&#8201;&#8212;&#8201;RL-DET-REMNOTIF.1</a></li>
-<li><a href="#annex_removal_procedure_control">A.1.2. Control of the removal procedures&#8201;&#8212;&#8201;RL-DET-REMCTRL.1</a></li>
-<li><a href="#annex_removal_polling_command">A.1.3. Configuration of the polling command&#8201;&#8212;&#8201;RL-DET-REMCFG.1</a></li>
+<li><a href="#annex_removal_notification">A.2.1. Removal notification&#8201;&#8212;&#8201;RL-DET-REMNOTIF.1</a></li>
+<li><a href="#annex_removal_procedure_control">A.2.2. Control of the removal procedures&#8201;&#8212;&#8201;RL-DET-REMCTRL.1</a></li>
+<li><a href="#annex_removal_polling_command">A.2.3. Configuration of the polling command&#8201;&#8212;&#8201;RL-DET-REMCFG.1</a></li>
 </ul>
 </li>
 </ul>
@@ -5694,7 +5695,52 @@ not exposed, or is left to the implementation layer.
 </tbody>
 </table>
 <div class="sect2">
-<h3 id="annex_detection"><a class="anchor" href="#annex_detection"></a><a class="link" href="#annex_detection">A.1. Detection</a></h3>
+<h3 id="annex_applicability_contexts"><a class="anchor" href="#annex_applicability_contexts"></a><a class="link" href="#annex_applicability_contexts">A.1. Applicability contexts</a></h3>
+<div class="paragraph">
+<p>A requirement of the <a href="#ref_rl_requirements">Reader Layer requirements</a> may carry one or more <strong>applicability
+contexts</strong>. A context does not qualify the requirement but the reader layer itself: it states the kind of layer the
+requirement applies to, and a requirement that carries several contexts applies only to a layer satisfying all of
+them. Before any mapping, this subsection states under which conditions this specification constitutes such a
+layer.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-center valign-middle">Context</th>
+<th class="tableblock halign-center valign-middle">Satisfied by this specification</th>
+<th class="tableblock halign-left valign-middle">Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Partially</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">Only through an <a href="#type_ObservableCardReader"><code>ObservableCardReader</code></a>, which notifies card insertion and removal and exposes <a href="#op_ObservableCardReader_startCardDetection"><code>startCardDetection</code></a>, <a href="#op_ObservableCardReader_stopCardDetection"><code>stopCardDetection</code></a> and <a href="#op_ObservableCardReader_endCardProcessing"><code>endCardProcessing</code></a>. A <a href="#type_CardReader"><code>CardReader</code></a> that is not observable has no detection property, so the requirements of this context do not apply to it.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Presence</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Always</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">Every <a href="#type_CardReader"><code>CardReader</code></a> exposes <a href="#op_CardReader_isCardPresent"><code>isCardPresent</code></a>, so a reader always offers a presence check.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Contactless</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Declared by the reader</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">Each <a href="#type_CardReader"><code>CardReader</code></a> declares its interface through <a href="#op_CardReader_isContactless"><code>isContactless</code></a>; the requirements of this context apply to the readers that declare a contactless interface.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The entries below give, for each requirement reviewed, the contexts it carries and the way this specification
+answers it.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="annex_detection"><a class="anchor" href="#annex_detection"></a><a class="link" href="#annex_detection">A.2. Detection</a></h3>
 <div class="paragraph">
 <p>The <strong>Detection</strong> applicability group of the <a href="#ref_rl_requirements">Reader Layer requirements</a> covers the
 notification of card insertion, the presence check and the removal of the card from the reader. The lifecycle
@@ -5706,18 +5752,22 @@ declares the end of the business processing through
 <code>CARD_REMOVED</code> event before detection resumes according to the active <a href="#type_DetectionMode"><code>DetectionMode</code></a>.</p>
 </div>
 <div class="paragraph">
-<p>Of the seven requirements of the group, four are met as stated or fall to the implementation layer by their own
-terms; the three that concern the removal procedure call for the design decisions set out below.</p>
+<p>All seven requirements of the group carry the <strong>Detection</strong> context, and therefore apply only to an observable
+reader, as stated in <a href="#annex_applicability_contexts">Section A.1</a>. Four of them are met as stated or fall to the
+implementation layer by their own terms; the three that concern the removal procedure call for the design
+decisions set out below.</p>
 </div>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 20%;">
-<col style="width: 20%;">
-<col style="width: 60%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
 </colgroup>
 <thead>
 <tr>
 <th class="tableblock halign-center valign-middle">Requirement</th>
+<th class="tableblock halign-center valign-middle">Applicability</th>
 <th class="tableblock halign-center valign-middle">Status</th>
 <th class="tableblock halign-left valign-middle">Mapping and rationale</th>
 </tr>
@@ -5725,43 +5775,54 @@ terms; the three that concern the removal procedure call for the design decision
 <tbody>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-INSNOTIF.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Satisfied as stated</p></td>
 <td class="tableblock halign-left valign-middle"><p class="tableblock">An <a href="#type_ObservableCardReader"><code>ObservableCardReader</code></a> notifies its <a href="#type_CardReaderEventHandler"><code>CardReaderEventHandler</code></a> of a <code>CARD_INSERTED</code> or <code>CARD_MATCHED</code> event when a card enters the reader.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-PCRQ.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection<br>
+  Presence</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Satisfied as stated</p></td>
 <td class="tableblock halign-left valign-middle"><p class="tableblock"><a href="#op_CardReader_isCardPresent"><code>isCardPresent</code></a> returns the presence status of a card at any time.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-PCAPDU.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection<br>
+  Presence</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Delegated to the implementation layer</p></td>
 <td class="tableblock halign-left valign-middle"><p class="tableblock">This specification defines no command for the presence check: how the status is obtained, and the prohibition of application commands for that purpose, belong to the reader driver.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-PCIBLOCK.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection<br>
+  Presence<br>
+  Contactless</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Delegated to the implementation layer</p></td>
 <td class="tableblock halign-left valign-middle"><p class="tableblock">Likewise, the low-level frame used for the presence check in contactless mode is a property of the reader driver, outside the surface of this API.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-REMCTRL.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Deliberately not exposed</p></td>
-<td class="tableblock halign-left valign-middle"><p class="tableblock">Removal procedures are capabilities of the reader and of its driver, not interchangeable options of the API; the implementation layer selects the best method the reader supports (see <a href="#annex_removal_procedure_control">Section A.1.2</a>).</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">Removal procedures are capabilities of the reader and of its driver, not interchangeable options of the API; the implementation layer selects the best method the reader supports (see <a href="#annex_removal_procedure_control">Section A.2.2</a>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-REMNOTIF.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Satisfied by an equivalent mechanism</p></td>
-<td class="tableblock halign-left valign-middle"><p class="tableblock">The removal procedure is invoked by <code>endCardProcessing</code> and the removal is notified by a <code>CARD_REMOVED</code> event, so no operation dedicated to the procedure itself is required (see <a href="#annex_removal_notification">Section A.1.1</a>).</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">The removal procedure is invoked by <code>endCardProcessing</code> and the removal is notified by a <code>CARD_REMOVED</code> event, so no operation dedicated to the procedure itself is required (see <a href="#annex_removal_notification">Section A.2.1</a>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">RL-DET-REMCFG.1</p></td>
+<td class="tableblock halign-center valign-middle"><p class="tableblock">Detection</p></td>
 <td class="tableblock halign-center valign-middle"><p class="tableblock">Delegated to the implementation layer</p></td>
-<td class="tableblock halign-left valign-middle"><p class="tableblock">The command used by the degraded polling mode is a technical parameter of the reader driver, set when that driver is instantiated, and is outside the surface of this API (see <a href="#annex_removal_polling_command">Section A.1.3</a>).</p></td>
+<td class="tableblock halign-left valign-middle"><p class="tableblock">The command used by the degraded polling mode is a technical parameter of the reader driver, set when that driver is instantiated, and is outside the surface of this API (see <a href="#annex_removal_polling_command">Section A.2.3</a>).</p></td>
 </tr>
 </tbody>
 </table>
 <div class="sect3">
-<h4 id="annex_removal_notification"><a class="anchor" href="#annex_removal_notification"></a><a class="link" href="#annex_removal_notification">A.1.1. Removal notification&#8201;&#8212;&#8201;RL-DET-REMNOTIF.1</a></h4>
+<h4 id="annex_removal_notification"><a class="anchor" href="#annex_removal_notification"></a><a class="link" href="#annex_removal_notification">A.2.1. Removal notification&#8201;&#8212;&#8201;RL-DET-REMNOTIF.1</a></h4>
 <div class="paragraph">
 <p>The requirement expects the upper layer to be able to trigger the removal procedure and to learn when the card has
 actually gone. This specification provides both through the transaction paradigm rather than through a
@@ -5782,7 +5843,7 @@ being processed.</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="annex_removal_procedure_control"><a class="anchor" href="#annex_removal_procedure_control"></a><a class="link" href="#annex_removal_procedure_control">A.1.2. Control of the removal procedures&#8201;&#8212;&#8201;RL-DET-REMCTRL.1</a></h4>
+<h4 id="annex_removal_procedure_control"><a class="anchor" href="#annex_removal_procedure_control"></a><a class="link" href="#annex_removal_procedure_control">A.2.2. Control of the removal procedures&#8201;&#8212;&#8201;RL-DET-REMCTRL.1</a></h4>
 <div class="paragraph">
 <p>The requirement expects each removal procedure managed by the layer to be switched on and off individually by the
 upper layer. This specification does not expose such a choice, for a reason that is architectural rather than
@@ -5809,7 +5870,7 @@ objective stated in <a href="#sec_architecture">Architectural Overview</a>.</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="annex_removal_polling_command"><a class="anchor" href="#annex_removal_polling_command"></a><a class="link" href="#annex_removal_polling_command">A.1.3. Configuration of the polling command&#8201;&#8212;&#8201;RL-DET-REMCFG.1</a></h4>
+<h4 id="annex_removal_polling_command"><a class="anchor" href="#annex_removal_polling_command"></a><a class="link" href="#annex_removal_polling_command">A.2.3. Configuration of the polling command&#8201;&#8212;&#8201;RL-DET-REMCFG.1</a></h4>
 <div class="paragraph">
 <p>The requirement originates from environments in which the reader driver cannot access the contactless transport
 frames directly&#8201;&#8212;&#8201;a generic smart card stack or a closed driver, for instance. Removal is then detected by sending
@@ -5821,7 +5882,7 @@ card, since some products change state when they receive a command that is not.<
 It is used only by implementations that cannot obtain the departure of the card from the reader itself, and the
 command it sends is a technical parameter of such an implementation, set when the reader driver is instantiated.
 Exposing that parameter in this API would require application code to know the radio-frequency idle protocol of a
-particular reader, which contradicts the abstraction principle described in <a href="#annex_removal_procedure_control">Section A.1.2</a>.</p>
+particular reader, which contradicts the abstraction principle described in <a href="#annex_removal_procedure_control">Section A.2.2</a>.</p>
 </div>
 <div class="paragraph">
 <p>This specification therefore defines the effect&#8201;&#8212;&#8201;the reader reports the departure of the card&#8201;&#8212;&#8201;and leaves the
