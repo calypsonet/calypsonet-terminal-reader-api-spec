@@ -11,13 +11,13 @@ versions:
     files:
       diagram:
         name: "261028-SP-CNATerminalAPI-Reader_v3.0.0-SNAPSHOT-class-diagram.svg"
-        size: "124 kB"
+        size: "129 kB"
       html:
         name: "261028-SP-CNATerminalAPI-Reader_v3.0.0-SNAPSHOT.html"
         size: "1.7 MB"
       pdf:
         name: "261028-SP-CNATerminalAPI-Reader_v3.0.0-SNAPSHOT.pdf"
-        size: "2.3 MB"
+        size: "2.4 MB"
   - version: "3.0.0"
     status: stable
     files:
