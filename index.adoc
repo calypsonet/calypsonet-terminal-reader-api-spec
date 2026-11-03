@@ -2256,6 +2256,35 @@ Each requirement reviewed below is given one of the following statuses:
 | The capability belongs to the reader driver or to its configuration, outside the surface of this API.
 |===
 
+[[annex_applicability_contexts]]
+=== Applicability contexts
+
+A requirement of the <<ref_rl_requirements,Reader Layer requirements>> may carry one or more *applicability
+contexts*. A context does not qualify the requirement but the reader layer itself: it states the kind of layer the
+requirement applies to, and a requirement that carries several contexts applies only to a layer satisfying all of
+them. Before any mapping, this subsection states under which conditions this specification constitutes such a
+layer.
+
+[cols="^.^1,^.^1,.^3", options="header"]
+|===
+| Context | Satisfied by this specification | Condition
+
+| Detection
+| Partially
+| Only through an <<type_ObservableCardReader,`ObservableCardReader`>>, which notifies card insertion and removal and exposes <<op_ObservableCardReader_startCardDetection,`startCardDetection`>>, <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>> and <<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>. A <<type_CardReader,`CardReader`>> that is not observable has no detection property, so the requirements of this context do not apply to it.
+
+| Presence
+| Always
+| Every <<type_CardReader,`CardReader`>> exposes <<op_CardReader_isCardPresent,`isCardPresent`>>, so a reader always offers a presence check.
+
+| Contactless
+| Declared by the reader
+| Each <<type_CardReader,`CardReader`>> declares its interface through <<op_CardReader_isContactless,`isContactless`>>; the requirements of this context apply to the readers that declare a contactless interface.
+|===
+
+The entries below give, for each requirement reviewed, the contexts it carries and the way this specification
+answers it.
+
 [[annex_detection]]
 === Detection
 
@@ -2268,38 +2297,51 @@ declares the end of the business processing through
 <<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>, and the departure of the card produces a
 `CARD_REMOVED` event before detection resumes according to the active <<type_DetectionMode,`DetectionMode`>>.
 
-Of the seven requirements of the group, four are met as stated or fall to the implementation layer by their own
-terms; the three that concern the removal procedure call for the design decisions set out below.
+All seven requirements of the group carry the *Detection* context, and therefore apply only to an observable
+reader, as stated in <<annex_applicability_contexts>>. Four of them are met as stated or fall to the
+implementation layer by their own terms; the three that concern the removal procedure call for the design
+decisions set out below.
 
-[cols="^.^1,^.^1,.^3", options="header"]
+[cols="^.^1,^.^1,^.^1,.^4", options="header"]
 |===
-| Requirement | Status | Mapping and rationale
+| Requirement | Applicability | Status | Mapping and rationale
 
 | RL-DET-INSNOTIF.1
+| Detection
 | Satisfied as stated
 | An <<type_ObservableCardReader,`ObservableCardReader`>> notifies its <<type_CardReaderEventHandler,`CardReaderEventHandler`>> of a `CARD_INSERTED` or `CARD_MATCHED` event when a card enters the reader.
 
 | RL-DET-PCRQ.1
+| Detection +
+  Presence
 | Satisfied as stated
 | <<op_CardReader_isCardPresent,`isCardPresent`>> returns the presence status of a card at any time.
 
 | RL-DET-PCAPDU.1
+| Detection +
+  Presence
 | Delegated to the implementation layer
 | This specification defines no command for the presence check: how the status is obtained, and the prohibition of application commands for that purpose, belong to the reader driver.
 
 | RL-DET-PCIBLOCK.1
+| Detection +
+  Presence +
+  Contactless
 | Delegated to the implementation layer
 | Likewise, the low-level frame used for the presence check in contactless mode is a property of the reader driver, outside the surface of this API.
 
 | RL-DET-REMCTRL.1
+| Detection
 | Deliberately not exposed
 | Removal procedures are capabilities of the reader and of its driver, not interchangeable options of the API; the implementation layer selects the best method the reader supports (see <<annex_removal_procedure_control>>).
 
 | RL-DET-REMNOTIF.1
+| Detection
 | Satisfied by an equivalent mechanism
 | The removal procedure is invoked by `endCardProcessing` and the removal is notified by a `CARD_REMOVED` event, so no operation dedicated to the procedure itself is required (see <<annex_removal_notification>>).
 
 | RL-DET-REMCFG.1
+| Detection
 | Delegated to the implementation layer
 | The command used by the degraded polling mode is a technical parameter of the reader driver, set when that driver is instantiated, and is outside the surface of this API (see <<annex_removal_polling_command>>).
 |===
