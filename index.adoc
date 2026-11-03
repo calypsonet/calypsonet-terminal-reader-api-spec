@@ -192,6 +192,7 @@ The following topics are *out of scope*:
 * the lifecycle and packaging of reader drivers,
 * the user interface presented by the terminal application.
 
+[[sec_conformance]]
 === Conformance
 
 A software product conforms to this specification if and only if:
@@ -333,6 +334,12 @@ is backward-compatible per that API's evolution policy.
 
 | [[ref_iso14443]] [ISO/IEC 14443]
 | https://www.iso.org[_Identification cards -- Contactless integrated circuit cards -- Proximity cards_].
+
+| [[ref_rl_requirements]] [CNA-RL-REQ]
+| _Calypso Specification -- Reader Layer Requirements_ (200422-SP-ReaderLayer-Requirements), version 2.0, 7 September 2023, {organization}. Restricted distribution.
+
+| [[ref_sta_ics_pcd]] [STA-ICS-PCD]
+| _STA Contactless Interface Certification for Public Transport Products -- Implementation Conformance Statement (ICS) for PCD_, version 3.3, 15 July 2025, Smart Ticketing Alliance, Certification Working Group. Declares, among the characteristics of a certified PT reader, the card presence check method it implements (item PCD2.5).
 |===
 
 ==== External Resources
@@ -388,10 +395,14 @@ is backward-compatible per that API's evolution policy.
 | FCI  | File Control Information
 | FCP  | File Control Parameters
 | FMD  | File Management Data
+| ICS  | Implementation Conformance Statement
 | ISO  | International Organization for Standardization
+| PCD  | Proximity Coupling Device
+| PT   | Public Transport
 | RF   | Radio Frequency
 | RFC  | Request For Comments
 | SPI  | Service Provider Interface
+| STA  | Smart Ticketing Alliance
 | UML  | Unified Modelling Language
 |===
 
@@ -540,6 +551,11 @@ The diagram uses the following notation:
 * `/ driver.operation()` -- a low-level hardware call (hardware notification).
 * `/ start job` -- a monitoring job submitted to the background executor.
 
+The removal phase closes the cycle for two operational reasons: it prevents a card that has never left the
+field from being processed a second time -- the *double tap* that would revalidate a transport ticket immediately
+after its validation -- and it releases the communication channel in a clean state, so that the next card is
+detected and processed without residual context. How this phase answers the external *Detection* requirements is
+documented in <<annex_external_requirements>>.
 
 [[sec_class_diagram]]
 === UML class diagram
@@ -2122,3 +2138,141 @@ restated for each error.
 | Purpose    | Indicates that the communication with the reader has failed. The most likely cause is a physical disconnection of the reader, but other technical problems MAY also be at the origin of the failure.
 |===
 
+// =============================================================================
+[appendix]
+[[annex_external_requirements]]
+== Conformance to external requirements
+
+[NOTE]
+This annex is _informative_. <<sec_conformance,Conformance>> defines what conforming *to this specification* means;
+this annex states, requirement by requirement, how this specification stands with respect to an *external*
+requirements profile, and records the reasons when a requirement is met through another mechanism, is deliberately
+not exposed, or is left to the implementation layer.
+
+Each requirement reviewed below is given one of the following statuses:
+
+[cols="^.^1,.^3", options="header"]
+|===
+| Status | Meaning
+
+| Satisfied as stated
+| The specification provides what the requirement asks for, in the form the requirement describes.
+
+| Satisfied by an equivalent mechanism
+| The intent of the requirement is met, through a mechanism that differs from the one it describes.
+
+| Deliberately not exposed
+| The capability is not offered to the upper layer, as a design decision stated in the corresponding note.
+
+| Delegated to the implementation layer
+| The capability belongs to the reader driver or to its configuration, outside the surface of this API.
+|===
+
+[[annex_detection]]
+=== Detection
+
+The *Detection* applicability group of the <<ref_rl_requirements,Reader Layer requirements>> covers the
+notification of card insertion, the presence check and the removal of the card from the reader. The lifecycle
+described in <<sec_observation_lifecycle,Reader observation lifecycle>> is the part of this specification that
+answers it: the upper layer is notified of an insertion by a <<type_CardReaderEvent,`CardReaderEvent`>>, it may ask
+the reader for the presence of a card at any time through <<op_CardReader_isCardPresent,`isCardPresent`>>, it
+declares the end of the business processing through
+<<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>, and the departure of the card produces a
+`CARD_REMOVED` event before detection resumes according to the active <<type_DetectionMode,`DetectionMode`>>.
+
+Of the seven requirements of the group, four are met as stated or fall to the implementation layer by their own
+terms; the three that concern the removal procedure call for the design decisions set out below.
+
+[cols="^.^1,^.^1,.^3", options="header"]
+|===
+| Requirement | Status | Mapping and rationale
+
+| RL-DET-INSNOTIF.1
+| Satisfied as stated
+| An <<type_ObservableCardReader,`ObservableCardReader`>> notifies its <<type_CardReaderEventHandler,`CardReaderEventHandler`>> of a `CARD_INSERTED` or `CARD_MATCHED` event when a card enters the reader.
+
+| RL-DET-PCRQ.1
+| Satisfied as stated
+| <<op_CardReader_isCardPresent,`isCardPresent`>> returns the presence status of a card at any time.
+
+| RL-DET-PCAPDU.1
+| Delegated to the implementation layer
+| This specification defines no command for the presence check: how the status is obtained, and the prohibition of application commands for that purpose, belong to the reader driver.
+
+| RL-DET-PCIBLOCK.1
+| Delegated to the implementation layer
+| Likewise, the low-level frame used for the presence check in contactless mode is a property of the reader driver, outside the surface of this API.
+
+| RL-DET-REMCTRL.1
+| Deliberately not exposed
+| Removal procedures are capabilities of the reader and of its driver, not interchangeable options of the API; the implementation layer selects the best method the reader supports (see <<annex_removal_procedure_control>>).
+
+| RL-DET-REMNOTIF.1
+| Satisfied by an equivalent mechanism
+| The removal procedure is invoked by `endCardProcessing` and the removal is notified by a `CARD_REMOVED` event, so no operation dedicated to the procedure itself is required (see <<annex_removal_notification>>).
+
+| RL-DET-REMCFG.1
+| Delegated to the implementation layer
+| The command used by the degraded polling mode is a technical parameter of the reader driver, set when that driver is instantiated, and is outside the surface of this API (see <<annex_removal_polling_command>>).
+|===
+
+[[annex_removal_notification]]
+==== Removal notification -- RL-DET-REMNOTIF.1
+
+The requirement expects the upper layer to be able to trigger the removal procedure and to learn when the card has
+actually gone. This specification provides both through the transaction paradigm rather than through a
+procedure-oriented operation.
+
+The upper layer does not start a removal procedure: it declares that the business processing of the current card is
+finished, by calling `endCardProcessing`. That single declaration is what instructs the layer below to release the
+card and to begin observing its departure; the procedure itself, and the means it uses, belong to the implementation
+layer. The outcome is reported to the upper layer either directly, by a `CARD_REMOVED` event when the card leaves
+the field, or indirectly, by the resumption of detection for the next card when the `DetectionMode` is `REPEATING`.
+
+The intent of the requirement is therefore met: the upper layer controls when the removal phase begins, and it is
+informed when the card has effectively left. What the specification does not define is a separate operation whose
+only purpose would be to trigger that phase, since no transaction can be considered complete while the card is still
+being processed.
+
+[[annex_removal_procedure_control]]
+==== Control of the removal procedures -- RL-DET-REMCTRL.1
+
+The requirement expects each removal procedure managed by the layer to be switched on and off individually by the
+upper layer. This specification does not expose such a choice, for a reason that is architectural rather than
+circumstantial.
+
+A contactless coupler does not offer a basket of interchangeable procedures. The way a departure is observed is a
+property of the coupler's hardware and firmware: monitoring of the carrier or of the antenna load, low-level
+protocol primitives such as an empty I-block or an R(NAK) as used by <<ref_iso14443,ISO/IEC 14443>> contactless
+implementations, or, when none of these is available, software polling. Which of them exists on a given product is
+decided by the reader manufacturer, not by the ticketing application. The requirements themselves acknowledge that
+variety, since a removal may also be observed through a presence check method or through the removal procedure of
+the contactless payment protocols. The certification of a public transport reader records that choice as a
+characteristic of the product: the vendor declares the card presence check method it implements -- empty I-blocks,
+R(NAK), or none -- and the condition under which that method is activated (<<ref_sta_ics_pcd,[STA-ICS-PCD]>>, item
+PCD2.5), a method that in most cases also serves as the removal procedure.
+
+The API deliberately insulates the upper layer from those contingencies: the implementation layer selects the most
+appropriate method among those the underlying reader supports, and the upper layer controls only *when* the removal
+phase starts and *whether* detection resumes afterwards. Exposing per-procedure switches would make application code
+depend on reader families and would have to be rewritten for every new coupler, which runs against the portability
+objective stated in <<sec_architecture,Architectural Overview>>.
+
+[[annex_removal_polling_command]]
+==== Configuration of the polling command -- RL-DET-REMCFG.1
+
+The requirement originates from environments in which the reader driver cannot access the contactless transport
+frames directly -- a generic smart card stack or a closed driver, for instance. Removal is then detected by sending
+an application command repeatedly until the card no longer answers, and the command used must be neutral for the
+card, since some products change state when they receive a command that is not.
+
+This degraded mode is a property of the reader driver, not of the contract between the application and the reader.
+It is used only by implementations that cannot obtain the departure of the card from the reader itself, and the
+command it sends is a technical parameter of such an implementation, set when the reader driver is instantiated.
+Exposing that parameter in this API would require application code to know the radio-frequency idle protocol of a
+particular reader, which contradicts the abstraction principle described in <<annex_removal_procedure_control>>.
+
+This specification therefore defines the effect -- the reader reports the departure of the card -- and leaves the
+means to the implementation layer, including the choice of a polling command where one is needed. An implementation
+that relies on such a command is expected to use one that leaves the card in the state it had before the polling
+started.
