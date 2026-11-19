@@ -100,12 +100,11 @@ interface CardReader {
 
     +isCardPresent() → Boolean
     {method} <size:10><color:#7F8C8D>    ⚠ errors: ReaderCommunication</color></size>
+    +<color:blue>endCardProcessing() → Unit
 }
 interface "ObservableCardReader" as ObservableCardReader extends CardReader {
     +<color:blue>startCardDetection(settings: CardDetectionSettings, eventHandler: CardReaderEventHandler) → Unit
     +stopCardDetection() → Unit
-
-    +<color:blue>endCardProcessing() → Unit
 
     +<color:blue>clearScheduledCardSelectionScenario() → Unit
 }

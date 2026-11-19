@@ -508,7 +508,7 @@ An <<type_ObservableCardReader,`ObservableCardReader`>> tracks card insertion an
 machine. The diagram below gives the integrator a complete view of that lifecycle: how
 <<op_ObservableCardReader_startCardDetection,`startCardDetection`>> /
 <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>> and
-<<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>> move the reader between states, when a
+<<op_CardReader_endCardProcessing,`endCardProcessing`>> move the reader between states, when a
 <<type_CardReaderEvent,`CardReaderEvent`>> is produced, and how the <<type_DetectionMode,`DetectionMode`>> and
 <<type_CardPresenceNotificationPolicy,`CardPresenceNotificationPolicy`>> settings steer the flow.
 
@@ -526,7 +526,7 @@ The diagram uses the following notation:
 * *Application* triggers (blue transitions in the diagram):
 ** `CARD_DETECTION_START_REQUESTED` -- the application called <<op_ObservableCardReader_startCardDetection,`startCardDetection`>>.
 ** `CARD_DETECTION_STOP_REQUESTED` -- the application called <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>> (factorized on the composite-state boundary).
-** `CARD_PROCESSING_ENDED` -- the application called <<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>.
+** `CARD_PROCESSING_ENDED` -- the application called <<op_CardReader_endCardProcessing,`endCardProcessing`>>.
 * *Hardware* triggers (red transitions in the diagram):
 ** `CARD_INSERTED` -- the monitoring job detected a card.
 ** `CARD_REMOVED` -- the monitoring job detected card removal.
@@ -556,6 +556,79 @@ field from being processed a second time -- the *double tap* that would revalida
 after its validation -- and it releases the communication channel in a clean state, so that the next card is
 detected and processed without residual context. How this phase answers the external *Detection* requirements is
 documented in <<annex_external_requirements>>.
+
+[[sec_power_and_field]]
+=== Card power and RF field
+
+Between two transactions, a terminal often needs the card to be *de-energised*: to bring a security module back to
+a known state, to comply with a power budget, or simply to make sure that the next card starts from a clean state.
+Hardware differs widely on that point, and this specification therefore describes *effects*, never capabilities.
+
+Four operations carry such an effect:
+
+* <<op_CardReader_isCardPresent,`isCardPresent`>> MAY require the card to be energised in order to answer; it
+  never de-energises a card that is already powered. On a contactless reader it switches the field
+  on, and that field stays on, when a card answers, until the processing cycle is ended;
+* <<op_ObservableCardReader_startCardDetection,`startCardDetection`>> applies the energy that the polling needs:
+  the field on a contactless reader, and, on a contact reader, the power of a card already present in the slot;
+* <<op_CardReader_endCardProcessing,`endCardProcessing`>> removes the power from the card at the end of a
+  processing cycle, and switches the field off unless the reader goes on using it, to observe the departure of the
+  card and then to detect the next one;
+* <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>> switches the field off, since no polling
+  remains to be performed; when a processing cycle is in progress, the card keeps its power and the field stays on
+  until that cycle is ended.
+
+These effects are provided on a *best-effort* basis: a reader that cannot carry them out performs what it can and
+does nothing for the rest. No error is raised, and nothing in the API tells the application whether the effect took
+place -- a `WARN`-level message is typically logged. An application MUST NOT rely on these effects for a security
+purpose; it relies on them to leave the reader in a sane state.
+
+The following table summarises the state targeted after each call. *On* means that the energy is applied -- the
+card is powered on a contact reader, the field is on on a contactless reader; *Off* means that it is not; *Held*
+means that the preceding state is left unchanged for the time being.
+
+[cols=".^3,^.^1,^.^1,^.^1,^.^1", options="header"]
+|===
+| Call | Contact, card | Contact, no card | Contactless, card | Contactless, no card
+
+| <<op_CardReader_isCardPresent,`isCardPresent`>>, detection inactive
+| Reader-dependent | Off | On | Off
+
+| Synchronous selection, detection inactive
+| On | Off | On | Off
+
+| <<op_ObservableCardReader_startCardDetection,`startCardDetection`>>
+| On | Off | On | On
+
+| <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>>, no processing cycle in progress
+| Off | Off | Off | Off
+
+| <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>>, processing cycle in progress
+| Held | Off | Held | Off
+
+| <<op_CardReader_endCardProcessing,`endCardProcessing`>>, detection inactive
+| Off | Off | Off | Off
+
+| <<op_CardReader_endCardProcessing,`endCardProcessing`>>, `SINGLE_SHOT` mode
+| Off | Off | Off | Off
+
+| <<op_CardReader_endCardProcessing,`endCardProcessing`>>, `REPEATING` mode
+| On | Off | On | On
+|===
+
+Three readings of this table deserve to be made explicit:
+
+* on a contact reader, whether the presence test energises the card is left to the reader, which is why that cell
+  is the only one that is not determined by this specification;
+* a card already present when detection starts is processed as a newly detected one; a card that no selection
+  case retains leads the reader straight to the removal phase;
+* `stopCardDetection` and `endCardProcessing` end on *Off* whichever is called first: what is *Held* by the former
+  is released by the latter. On a contactless reader, `endCardProcessing` switches the field off even when the
+  cycle amounted to nothing more than a call to `isCardPresent`.
+
+Finer control -- switching the field on and off on demand, resetting a card, choosing a power policy -- is outside
+the scope of this specification. A reader implementation that offers such control exposes it through its own
+interfaces, which the application reaches outside the contract described here.
 
 [[sec_class_diagram]]
 === UML class diagram
@@ -914,6 +987,47 @@ identified by the `selectionCaseId` supplied at preparation. `selectionCaseId` a
 | Purpose    | Represents a card reader capable of driving the underlying hardware to manage card detection.
 |===
 
+[[op_CardReader_endCardProcessing]]
+===== End Card Processing
+
+[cols="^.^1h,.^5", grid=rows, frame=all]
+|===
+| Signature      | `endCardProcessing() -> Unit`
+| Since          | 3.0
+| Description
+a| Notifies the reader that the *business processing* of the current card has been completed. Upon receiving this
+notification, the reader:
+
+* performs the *DESELECT* sequence on the card, when applicable to the underlying technology, so that the card is
+  brought to a clean idle state;
+* releases the references to the <<type_SmartCard,`SmartCard`>> instances held following the last selection (see
+  <<sec_smartcard_lifecycle,the `SmartCard` lifecycle>>);
+* removes the electrical power from the card, except while its departure still has to be observed.
+
+What happens to the power and, on a contactless reader, to the field, depends on what follows the processing
+cycle:
+
+* the reader is not observable, or its card detection is not active -- the card is powered off and, on a
+  contactless reader, the field is switched off;
+* card detection is active in `REPEATING` mode -- the reader enters the *waiting-for-card-removal* phase, then
+  resumes the detection of the next card; on a contactless reader the field stays on throughout, first because it
+  is what allows the departure of the card to be observed, then because the search for the next card requires it;
+* card detection is active in `SINGLE_SHOT` mode -- detection stops at the end of the cycle: the card is powered
+  off and, on a contactless reader, the field is switched off.
+
+These electrical effects are provided on a *best-effort* basis, as described in
+<<sec_power_and_field,Card power and RF field>>.
+
+This operation is idempotent: calling it twice on the same card processing cycle has no effect after the
+first call. It is RECOMMENDED to call `endCardProcessing` systematically (e.g. inside a `finally` block) at
+the end of a card processing whatever the outcome.
+
+Failures of the underlying exchanges, including a communication failure with the card or with the reader, are not
+reported: the operation returns normally, and the condition surfaces at the next operation.
+| Pre-conditions | None.
+| Errors         | None.
+|===
+
 [[op_CardReader_getName]]
 ===== Get Name
 
@@ -935,10 +1049,21 @@ identified by the `selectionCaseId` supplied at preparation. `selectionCaseId` a
 | Signature      | `isCardPresent() -> Boolean`
 | Since          | 1.0
 | Description
-| Indicates whether a card is currently detected by the reader. What counts as *present* depends on the reader's
-  communication mode (see `isContactless`): on a *contact* reader, a card is present when it is physically inserted
-  in the slot; on a *contactless* reader, a card is present when it lies within range of the antenna (in the RF
-  field).
+a| Indicates whether a card is currently detected by the reader. What counts as *present* depends on the reader's
+communication mode (see `isContactless`): on a *contact* reader, a card is present when it is physically inserted
+in the slot; on a *contactless* reader, a card is present when it lies within range of the antenna (in the RF
+field).
+
+Answering MAY require the card to be energised; conversely, an implementation MAY defer the power-on until the
+first exchange with the card. The operation never de-energises a card that is already powered. On a contactless
+reader it switches the field on; when a card answers, the field stays on until the processing cycle is ended by
+<<op_CardReader_endCardProcessing,`endCardProcessing`>>. These effects are provided on a *best-effort* basis (see
+<<sec_power_and_field,Card power and RF field>>).
+
+On a contact reader that has no presence switch, the presence of a card cannot be observed directly: the reader
+either answers `true` by default, or attempts to energise the card and answers according to the outcome. An
+<<type_ObservableCardReader,`ObservableCardReader`>> uses the second approach, so that its detection does not
+report a card that is not there.
 | Returns        | `true` if a card is present -- inserted for a contact reader, or within the field for a contactless reader -- `false` otherwise.
 | Pre-conditions | None.
 | Errors         | <<type_ReaderCommunication,`ReaderCommunication`>> -- if the communication with the reader has failed.
@@ -1305,32 +1430,6 @@ The reader's complete insertion/processing/removal lifecycle -- including when e
                    <<op_SequentialCardSelectionManager_scheduleCardSelectionScenario,`SequentialCardSelectionManager.scheduleCardSelectionScenario`>>
 |===
 
-[[op_ObservableCardReader_endCardProcessing]]
-===== End Card Processing
-
-[cols="^.^1h,.^5", grid=rows, frame=all]
-|===
-| Signature      | `endCardProcessing() -> Unit`
-| Since          | 3.0
-| Description
-a| Notifies the reader that the *business processing* of the current card has been completed. Upon receiving this
-notification, the reader:
-
-* performs the *DESELECT* sequence on the card (when applicable to the underlying technology) so that the card
-  is brought to a clean idle state;
-* transitions to the *waiting-for-card-removal* phase, during which the observation cycle waits for the card to
-  leave the reader's field before becoming able to detect a new card.
-
-In addition, the reader releases the references to the <<type_SmartCard,`SmartCard`>> instances held
-following the last selection (see <<sec_smartcard_lifecycle,the `SmartCard` lifecycle>>).
-
-This operation is idempotent: calling it twice on the same card processing cycle has no effect after the
-first call. It is RECOMMENDED to call `endCardProcessing` systematically (e.g. inside a `finally` block) at
-the end of a card processing whatever the outcome.
-| Pre-conditions | None.
-| Errors         | None.
-|===
-
 [[op_ObservableCardReader_startCardDetection]]
 ===== Start Card Detection
 
@@ -1351,6 +1450,11 @@ the end of a card processing whatever the outcome.
   Parameters carried by `CardDetectionSettings` that are not supported by the underlying reader (for example an
   unsupported `RfTechnology`, or an ECP frame on a reader that does not support ECP) are silently ignored.
   A `WARN`-level message is typically logged in such cases. No error is raised.
+
+  Activating detection applies the energy that the polling requires, on a best-effort basis (see
+  <<sec_power_and_field,Card power and RF field>>): the field is switched on on a contactless reader, and a card
+  already present in the slot of a contact reader is powered. Such a card is processed as a newly detected one; if
+  no selection case retains it, the reader goes straight to the waiting-for-card-removal phase.
 | Parameters
 | `settings` (<<type_CardDetectionSettings,`CardDetectionSettings`>>)     -- the detection configuration. +
   `eventHandler` (<<type_CardReaderEventHandler,`CardReaderEventHandler`>>) -- the application-side handler that receives reader events and errors.
@@ -1365,7 +1469,14 @@ the end of a card processing whatever the outcome.
 |===
 | Signature      | `stopCardDetection() -> Unit`
 | Since          | 1.0
-| Description    | Stops card detection. After this operation has returned, the registered event handler does not receive card events until detection is restarted.
+| Description
+| Stops card detection. After this operation has returned, the registered event handler does not receive card
+  events until detection is restarted.
+
+  No polling remains to be performed, so the reader removes the power from the card and switches the field off on
+  a contactless reader, on a best-effort basis (see <<sec_power_and_field,Card power and RF field>>). When a card
+  processing cycle is in progress, that effect is held back: the card keeps its power and the field stays on until
+  <<op_CardReader_endCardProcessing,`endCardProcessing`>> ends the cycle.
 | Pre-conditions | None.
 | Errors         | None.
 |===
@@ -2135,7 +2246,7 @@ In the reader observation lifecycle, this setting is the guard that decides whet
 | Value          | Since | Description
 
 | `REPEATING`    | 3.0 | The reader continues waiting for the next card insertion.
-| `SINGLE_SHOT`  | 3.0 | The reader stops detection after the current card-processing cycle; a new call to `startCardDetection` is required to detect further cards.
+| `SINGLE_SHOT`  | 3.0 | The reader stops detection after the current card-processing cycle, without waiting for the card to leave; a new call to `startCardDetection` is required to detect further cards.
 |===
 
 [[type_FileControlInformation]]
@@ -2271,7 +2382,7 @@ layer.
 
 | Detection
 | Partially
-| Only through an <<type_ObservableCardReader,`ObservableCardReader`>>, which notifies card insertion and removal and exposes <<op_ObservableCardReader_startCardDetection,`startCardDetection`>>, <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>> and <<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>. A <<type_CardReader,`CardReader`>> that is not observable has no detection property, so the requirements of this context do not apply to it.
+| Only through an <<type_ObservableCardReader,`ObservableCardReader`>>, which notifies card insertion and removal and exposes <<op_ObservableCardReader_startCardDetection,`startCardDetection`>> and <<op_ObservableCardReader_stopCardDetection,`stopCardDetection`>>. A <<type_CardReader,`CardReader`>> that is not observable has no detection property, so the requirements of this context do not apply to it.
 
 | Presence
 | Always
@@ -2294,7 +2405,7 @@ described in <<sec_observation_lifecycle,Reader observation lifecycle>> is the p
 answers it: the upper layer is notified of an insertion by a <<type_CardReaderEvent,`CardReaderEvent`>>, it may ask
 the reader for the presence of a card at any time through <<op_CardReader_isCardPresent,`isCardPresent`>>, it
 declares the end of the business processing through
-<<op_ObservableCardReader_endCardProcessing,`endCardProcessing`>>, and the departure of the card produces a
+<<op_CardReader_endCardProcessing,`endCardProcessing`>>, and the departure of the card produces a
 `CARD_REMOVED` event before detection resumes according to the active <<type_DetectionMode,`DetectionMode`>>.
 
 All seven requirements of the group carry the *Detection* context, and therefore apply only to an observable
